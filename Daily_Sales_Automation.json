@@ -1,0 +1,372 @@
+{
+  "name": "Daily_Sales_Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 8
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ],
+      "id": "9a9c1e82-2690-4b6c-a0fc-ea9fd87d235a",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\nproduct_name,\nSUM(quantity) total_quantity,\nSUM(total_amount) revenue\nFROM sales\nWHERE DATE(sale_date)=CURDATE()-INTERVAL 1 DAY\nGROUP BY product_name;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.5,
+      "position": [
+        208,
+        0
+      ],
+      "id": "be5966f7-5b51-4b6d-a2d4-044c99256760",
+      "name": "Execute a SQL query",
+      "credentials": {
+        "mySql": {
+          "id": "UQ8PzettOqABV2hV",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nlet totalRevenue = 0;\nlet totalQuantity = 0;\n\nlet topProduct = \"\";\nlet highestRevenue = 0;\n\nconst salesData = [];\n\nfor (const item of items) {\n\n  const revenue = Number(item.json.revenue);\n  const quantity = Number(item.json.total_quantity);\n\n  totalRevenue += revenue;\n  totalQuantity += quantity;\n\n  if (revenue > highestRevenue) {\n    highestRevenue = revenue;\n    topProduct = item.json.product_name;\n  }\n\n  salesData.push(item.json);\n}\n\nreturn [\n{\njson:{\n    totalRevenue,\n    totalQuantity,\n    topProduct,\n    salesData\n}\n}\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        416,
+        0
+      ],
+      "id": "58319166-b176-4a86-8570-b70adca42685",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "fa7caf2e-1499-4293-9883-fab06b5d1e0d",
+              "leftValue": "={{$json.totalRevenue}}",
+              "rightValue": 500000,
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        624,
+        0
+      ],
+      "id": "d4f054c3-2421-4033-ad36-a786832f3d9c",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "sendTo": "kaushaldixit783@gmail.com",
+        "subject": "=⚠ Sales Alert",
+        "message": "=Hello Team,  Today's revenue is below the target.  Total Revenue: ₹{{$json.totalRevenue}}  Top Product: {{$json.topProduct}}  Please review today's sales performance.  Regards, Analytics Team",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        832,
+        -96
+      ],
+      "id": "c83a2852-23b0-4dab-be51-e0307920838c",
+      "name": "Send a message",
+      "webhookId": "58d720a6-923a-465f-982b-7c61f1c68f24",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "IN0uscuShcmOV2pQ",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "kaushaldixit783@gmail.com",
+        "subject": "=Daily Sales Report - {{$now.format('yyyy-MM-dd')}}",
+        "message": "={{ $json.html }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1968,
+        128
+      ],
+      "id": "05efaa5a-22a4-4f5f-93a8-76fbbfb16827",
+      "name": "Send a message1",
+      "webhookId": "ae8d9a75-3aae-49dc-af58-482996c55d03",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "IN0uscuShcmOV2pQ",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are a Business Analyst.\nGenerate a professional daily sales report for {{ $now.format('yyyy-MM-dd') }}.\nTotal Revenue: ₹{{ $json[\"Total Revenue\"] }}\nTotal Quantity Sold: {{ $json[\"Total Quantity\"] }}\nTop Selling Product: {{ $json[\"Top Product\"] }}\n\nWrite the report in under 100 words. Include:\n- Overall performance\n- Top product\n- Recommendation"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        1296,
+        128
+      ],
+      "id": "069bc55b-473b-4a2d-9e23-3499bf00c82c",
+      "name": "Message a model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "7fMoI3n5FtEQpKOW",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "19-Tj2LhKpFOMKe69dO1oog0YiNYj1UaSS0MMBDDxFsE",
+          "mode": "list",
+          "cachedResultName": "Daily Sales Report",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/19-Tj2LhKpFOMKe69dO1oog0YiNYj1UaSS0MMBDDxFsE/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 503643329,
+          "mode": "list",
+          "cachedResultName": "Daily_Summary",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/19-Tj2LhKpFOMKe69dO1oog0YiNYj1UaSS0MMBDDxFsE/edit#gid=503643329"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Date": "={{ $now.format('yyyy-MM-dd') }}",
+            "Total Revenue": "={{ $json.totalRevenue }}",
+            "Total Quantity": "={{ $json.totalQuantity }}",
+            "Top Product": "={{ $json.topProduct }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Date",
+              "displayName": "Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Total Revenue",
+              "displayName": "Total Revenue",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Total Quantity",
+              "displayName": "Total Quantity",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Top Product",
+              "displayName": "Top Product",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1056,
+        128
+      ],
+      "id": "c86b59ff-e9b1-4f2f-b739-8a647ad75e3c",
+      "name": "Append row in sheet1",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "auuzjiTPZef1QGln",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "let text = $json.content.parts[0].text;\ntext = text.replace(/\\*\\*(.*?)\\*\\*/g, '<b>$1</b>').replace(/\\n/g, '<br>');\nreturn { html: text };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1728,
+        128
+      ],
+      "id": "76beb55e-c03d-4a8d-9973-bbd96cdf0695",
+      "name": "Code in JavaScript1"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Append row in sheet1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append row in sheet1": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Send a message1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "e0a6ea54-a20d-4dd6-9ed7-2ade310d485f",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "16613ff911ed03a20720101ee6eeab4d3d7a54c7f132e999277680e47e2bf872"
+  },
+  "nodeGroups": [],
+  "id": "e1OIi82hRCf4Ocj3",
+  "tags": []
+}
